@@ -1,0 +1,71 @@
+What each part means, in simple terms:
+---------------database.py---------------
+DATABASE_URL — this is the address telling Python how to reach your PostgreSQL database: username (postgres), password, localhost (your own computer), port 5432 (PostgreSQL's default), and the database name (care_connect)
+
+engine — the actual connection to the database
+
+SessionLocal — a factory that creates a new "conversation" with the database each time we need 
+to save/fetch something
+
+Base — a base class that all our database tables (like User) will be built from
+
+get_db() — a helper function that opens a database session, hands it to whichever part of the code needs it, then closes it safely afterward (even if something goes wrong)
+==============================================================================================
+
+
+----------models.py----------------
+What this means, simply:
+
+class User(Base): — this creates a new database table called users, built using the Base we set up in database.py
+
+Each Column(...) line is one field/column in that table — name, email, hashed_password, role, etc.
+
+nullable=False means that field is required — every user must have it
+
+nullable=True means that field is optional — since a resident won't have a staff_id, and security won't have a room_number, these fields stay empty for roles that don't need them
+unique=True on email means no two users can register with the same email
+
+==============================================================================================
+---------------------------schemas.py------------------------------------------------
+What this means, simply:
+
+models.py (what we just made) defines the database table — how data is stored
+schemas.py (this file) defines the request/response shape — what data is allowed to come in from the frontend, and what we send back out
+
+Breaking it down:
+
+UserRegister — when someone submits the registration form, the backend expects exactly this shape: name, email, password, role are required; the role-specific fields are optional (Optional[str] = None means "this can be missing")
+
+EmailStr — a special type that automatically checks the email looks like a real email format (has an @, etc.) before accepting it
+
+UserLogin — login only needs email + password, nothing else
+
+UserResponse — when we send user data back to the frontend (e.g., after successful registration), we deliberately exclude hashed_password — we never want to send password data back, even hashed, for security reasons
+
+class Config: from_attributes = True — this just allows this schema to convert directly from a database User object into this response shape
+
+===============================================================================================
+----------------------------------------auth.py------------------------------------------
+What this means, simply:
+
+pwd_context — a configured tool that knows how to scramble ("hash") passwords using the bcrypt algorithm, which is a secure, industry-standard way to store passwords
+
+hash_password() — takes a plain password (like mypassword123) and turns it into a scrambled string that's safe to store in the database. Even if someone stole your database, they couldn't read the actual passwords.
+
+verify_password() — when a user tries to log in, we can't "unscramble" the stored hash back into the original password (that's the whole point — it's one-way). Instead, this function takes the password they just typed, hashes it the same way, and checks if it matches what's stored.
+
+Why we never store plain passwords: if your database ever got leaked or hacked, storing plain text passwords would expose everyone's actual password. Hashing means even you (the developer) can't see anyone's real password — only they know it.
+
+Paste this into auth.py, save it, and let me know once it's error-free — then we'll build the final piece: main.py, which ties everything together with the actual /register and /login API endpoints.
+===============================================================================================
+----------------------------------------------------main.py------------------------------------
+
+What this means, simply:
+
+Base.metadata.create_all(bind=engine) — this line looks at your User model and actually creates the table in your PostgreSQL care_connect database, if it doesn't already exist
+
+CORSMiddleware — browsers normally block a webpage on one port (5173, your React app) from talking to a server on another port (8000, this backend) for security reasons. This explicitly allows that connection.
+
+@app.post("/register") — this creates an endpoint at http://localhost:8000/register. When your RegisterForm.jsx sends data here, it: checks if the email is already taken, hashes the password, saves the new user, and sends back their info (minus the password)
+
+@app.post("/login") — creates http://localhost:8000/login. It looks up the user by email, and checks if the password they typed matches the stored hash using verify_password()
