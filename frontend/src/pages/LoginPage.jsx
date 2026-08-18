@@ -30,6 +30,9 @@ export default function LoginPage() {
         <p style={styles.footerText}>
           Don't have an account? <Link to="/register" style={styles.link}>Register</Link>
         </p>
+        <p style={{ ...styles.footerText, marginTop: '6px' }}>
+        <span style={styles.link} onClick={() => setRole('admin')}>Admin Login</span>
+        </p>
       </div>
     </div>
   );

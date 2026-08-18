@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Users, LogOut, User, Megaphone, X, Building2, Phone } from 'lucide-react';
+import { Users, LogOut, User, Megaphone, X, Building2, Phone, AlertTriangle, MapPin } from 'lucide-react';
 
 const API = 'http://localhost:8000';
 
@@ -9,6 +9,8 @@ export default function GuardianDashboard() {
   const userName = localStorage.getItem('userName');
 
   const [linkedData, setLinkedData] = useState({ linked: false });
+  const [residentAlerts, setResidentAlerts] = useState([]);
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
 
   const [profileForm, setProfileForm] = useState({ age: '', photo_url: '', medical_notes: '' });
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -24,6 +26,15 @@ export default function GuardianDashboard() {
       setLinkedData(res.data);
     } catch (err) {
       console.log('Could not fetch linked resident', err);
+    }
+  };
+
+  const fetchResidentAlerts = async () => {
+    try {
+      const res = await axios.get(`${API}/guardian-user/${userId}/resident-alerts`);
+      setResidentAlerts(res.data);
+    } catch (err) {
+      console.log('Could not fetch resident alerts', err);
     }
   };
 
@@ -52,6 +63,7 @@ export default function GuardianDashboard() {
   useEffect(() => {
     if (userId) {
       fetchLinkedResident();
+      fetchResidentAlerts();
       fetchProfile();
       fetchAnnouncements();
     }
@@ -60,6 +72,16 @@ export default function GuardianDashboard() {
   const showMessage = (text) => {
     setMessage(text);
     setTimeout(() => setMessage(''), 3000);
+  };
+
+  const handleRespond = async (alertId) => {
+    try {
+      await axios.put(`${API}/emergency-alert/${alertId}/acknowledge?accepted_by=${userId}`);
+      showMessage("You're now responding to this emergency");
+      fetchResidentAlerts();
+    } catch (err) {
+      showMessage('Failed to respond');
+    }
   };
 
   const handleProfileSubmit = async (e) => {
@@ -80,6 +102,13 @@ export default function GuardianDashboard() {
   const handleLogout = () => {
     localStorage.clear();
     window.location.href = '/login';
+  };
+
+  const categoryColor = (cat) => {
+    if (cat === 'Medical') return '#C0392B';
+    if (cat === 'Fire') return '#E67E22';
+    if (cat === 'Security') return '#8552A1';
+    return '#6B7370';
   };
 
   return (
@@ -174,54 +203,149 @@ export default function GuardianDashboard() {
           </p>
         </div>
       ) : (
-        <div style={styles.grid}>
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>
-              <Building2 size={16} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-              Linked Resident
-            </h3>
-            <p style={{ color: '#1B4B43', fontWeight: 600, fontSize: '14px', margin: '0 0 4px' }}>
-              {linkedData.resident_name}
-            </p>
-            <p style={{ color: '#6B7370', fontSize: '13px', margin: 0 }}>{linkedData.resident_email}</p>
-          </div>
+        <>
+          {residentAlerts.length > 0 && (
+            <div style={{ ...styles.card, marginBottom: '16px', borderLeft: '4px solid #C0392B' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ ...styles.cardTitle, color: '#C0392B' }}>
+                  <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+                  Emergency Alerts from {linkedData.resident_name}
+                </h3>
+                {residentAlerts.length > 5 && (
+                  <button style={styles.historyLink} onClick={() => setShowAllAlerts(!showAllAlerts)}>
+                    {showAllAlerts ? 'Show less' : 'View History'}
+                  </button>
+                )}
+              </div>
+              <ul style={styles.list}>
+                {(showAllAlerts ? residentAlerts : residentAlerts.slice(0, 5)).map((a) => (
+                  <li key={a.id} style={{ ...styles.listItem, display: 'block' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {a.category && (
+                          <span style={{
+                            fontSize: '10px', fontWeight: 700, color: '#fff',
+                            background: categoryColor(a.category), borderRadius: '999px', padding: '1px 7px',
+                          }}>
+                            {a.category}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '13px', color: '#1B4B43' }}>{a.message || 'No message'}</span>
+                      </div>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: a.status === 'pending' ? '#C0392B' : a.status === 'acknowledged' ? '#C98A2E' : '#2F7D6E',
+                      }}>
+                        {a.status.toUpperCase()}
+                      </span>
+                    </div>
+                    {a.latitude && a.longitude && (
+                      <a
+                        href={`https://www.google.com/maps?q=${a.latitude},${a.longitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: '11px', color: '#3D6FA8', display: 'flex', alignItems: 'center', gap: '2px', marginTop: '3px' }}
+                      >
+                        <MapPin size={11} /> View location
+                      </a>
+                    )}
 
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>Society & Flat</h3>
-            <ul style={styles.list}>
-              {linkedData.societies?.map((s) => (
-                <li key={s.id} style={styles.listItem}>{s.name}{s.address ? ` — ${s.address}` : ''}</li>
-              ))}
-              {linkedData.flats?.map((f) => (
-                <li key={f.id} style={styles.listItem}>Flat {f.flat_number}</li>
-              ))}
-              {(!linkedData.societies?.length && !linkedData.flats?.length) && (
-                <p style={{ color: '#9AA3A0', fontSize: '13px' }}>No society/flat added yet.</p>
-              )}
-            </ul>
-          </div>
+                    {a.status === 'pending' && (
+                      <button style={styles.respondButton} onClick={() => handleRespond(a.id)}>
+                        I'M RESPONDING
+                      </button>
+                    )}
+                    {a.status === 'acknowledged' && String(a.accepted_by) === String(userId) && (
+                      <p style={styles.respondingNote}>🟢 You are responding to this emergency</p>
+                    )}
+                    {a.status === 'acknowledged' && String(a.accepted_by) !== String(userId) && (
+                      <p style={styles.respondingNote}>🟢 Someone else is responding</p>
+                    )}
+                    {a.status === 'resolved' && (
+                      <p style={{ ...styles.respondingNote, color: '#6B7370' }}>✓ Resolved</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>
-              <Phone size={16} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-              Emergency Contacts
-            </h3>
-            <ul style={styles.list}>
-              {linkedData.emergency_contacts?.length === 0 && (
-                <p style={{ color: '#9AA3A0', fontSize: '13px' }}>No emergency contacts added yet.</p>
-              )}
-              {linkedData.emergency_contacts?.map((c) => (
-                <li key={c.id} style={styles.listItem}>{c.name} ({c.relation}) — {c.phone}</li>
-              ))}
-            </ul>
+          <div style={styles.grid}>
+            <div style={styles.card}>
+              <h3 style={styles.cardTitle}>
+                <Building2 size={16} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+                Linked Resident
+              </h3>
+              <p style={{ color: '#1B4B43', fontWeight: 600, fontSize: '14px', margin: '0 0 4px' }}>
+                {linkedData.resident_name}
+              </p>
+              <p style={{ color: '#6B7370', fontSize: '13px', margin: 0 }}>{linkedData.resident_email}</p>
+            </div>
+
+            <div style={styles.card}>
+              <h3 style={styles.cardTitle}>Society & Flat</h3>
+              <ul style={styles.list}>
+                {linkedData.societies?.map((s) => (
+                  <li key={s.id} style={styles.listItem}>{s.name}{s.address ? ` — ${s.address}` : ''}</li>
+                ))}
+                {linkedData.flats?.map((f) => (
+                  <li key={f.id} style={styles.listItem}>Flat {f.flat_number}</li>
+                ))}
+                {(!linkedData.societies?.length && !linkedData.flats?.length) && (
+                  <p style={{ color: '#9AA3A0', fontSize: '13px' }}>No society/flat added yet.</p>
+                )}
+              </ul>
+            </div>
+
+            <div style={styles.card}>
+              <h3 style={styles.cardTitle}>
+                <Phone size={16} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+                Emergency Contacts
+              </h3>
+              <ul style={styles.list}>
+                {linkedData.emergency_contacts?.length === 0 && (
+                  <p style={{ color: '#9AA3A0', fontSize: '13px' }}>No emergency contacts added yet.</p>
+                )}
+                {linkedData.emergency_contacts?.map((c) => (
+                  <li key={c.id} style={styles.listItem}>{c.name} ({c.relation}) — {c.phone}</li>
+                ))}
+              </ul>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
 }
 
 const styles = {
+  historyLink: {
+    background: 'none',
+    border: 'none',
+    color: '#3D6FA8',
+    fontSize: '12px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  respondButton: {
+    marginTop: '8px',
+    padding: '7px 12px',
+    borderRadius: '6px',
+    border: 'none',
+    background: '#C0392B',
+    color: '#fff',
+    fontWeight: 700,
+    fontSize: '11px',
+    cursor: 'pointer',
+  },
+  respondingNote: {
+    marginTop: '8px',
+    marginBottom: 0,
+    fontSize: '12px',
+    color: '#2F7D6E',
+    fontWeight: 600,
+  },
   wrapper: { minHeight: '100vh', padding: '30px', background: '#F6F8F7' },
   header: {
     display: 'flex',
@@ -317,7 +441,7 @@ const styles = {
   },
   cardTitle: { margin: '0 0 12px', color: '#1B4B43', fontSize: '15px' },
   form: { display: 'flex', flexDirection: 'column', gap: '8px' },
- input: {
+  input: {
     padding: '9px 10px',
     borderRadius: '7px',
     border: '1.5px solid #E2E5E3',

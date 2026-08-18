@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ShieldCheck, LogOut, Trash2, Users, AlertTriangle, Check } from 'lucide-react';
+import { ShieldCheck, LogOut, Trash2, Users, AlertTriangle, Check, MapPin } from 'lucide-react';
 
 const API = 'http://localhost:8000';
 
@@ -17,6 +17,7 @@ export default function SecurityDashboard() {
 
   const [alerts, setAlerts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [responderInfo, setResponderInfo] = useState({}); // { userId: { name, role, phone } }
 
   const fetchAnnouncements = async () => {
     try {
@@ -53,6 +54,22 @@ export default function SecurityDashboard() {
   useEffect(() => {
     fetchUsersByRole(activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    const idsToFetch = [...new Set([
+      ...alerts.filter((a) => a.accepted_by && !responderInfo[a.accepted_by]).map((a) => a.accepted_by),
+      ...alerts.filter((a) => a.resident_id && !responderInfo[a.resident_id]).map((a) => a.resident_id),
+    ])];
+    idsToFetch.forEach(async (id) => {
+      try {
+        const res = await axios.get(`${API}/user/${id}/basic-info`);
+        setResponderInfo((prev) => ({ ...prev, [id]: res.data }));
+      } catch (err) {
+        console.log('Could not fetch responder info', err);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alerts]);
 
   const showMessage = (text) => {
     setMessage(text);
@@ -125,6 +142,21 @@ export default function SecurityDashboard() {
     (u.room_number && u.room_number.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const categoryColor = (cat) => {
+    if (cat === 'Medical') return '#C0392B';
+    if (cat === 'Fire') return '#E67E22';
+    if (cat === 'Security') return '#8552A1';
+    return '#6B7370';
+  };
+
+  const formatDateTime = (isoString) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    return d.toLocaleString(undefined, {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    });
+  };
+
   return (
     <div style={styles.wrapper}>
       <div style={styles.header}>
@@ -170,15 +202,57 @@ export default function SecurityDashboard() {
               <li key={a.id} style={{ ...styles.listItem, display: 'block' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <strong style={{ color: '#1B4B43', fontSize: '13px' }}>Resident #{a.resident_id}</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                      <strong style={{ color: '#1B4B43', fontSize: '13px' }}>
+                        {responderInfo[a.resident_id]?.name || `Resident #${a.resident_id}`}
+                      </strong>
+                      {a.category && (
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          color: '#fff',
+                          background: categoryColor(a.category),
+                          borderRadius: '999px',
+                          padding: '1px 7px',
+                        }}>
+                          {a.category}
+                        </span>
+                      )}
+                    </div>
                     <p style={{ margin: '2px 0', color: '#6B7370', fontSize: '12px' }}>{a.message || 'No message'}</p>
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: a.status === 'pending' ? '#C0392B' : a.status === 'acknowledged' ? '#C98A2E' : '#2F7D6E',
-                    }}>
-                      {a.status.toUpperCase()}
-                    </span>
+                    <p style={{ margin: '0 0 2px', color: '#9AA3A0', fontSize: '11px' }}>{formatDateTime(a.created_at)}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: a.status === 'pending' ? '#C0392B' : a.status === 'acknowledged' ? '#C98A2E' : '#2F7D6E',
+                      }}>
+                        {a.status.toUpperCase()}
+                      </span>
+                      {a.latitude && a.longitude && (
+                        <a
+                          href={`https://www.google.com/maps?q=${a.latitude},${a.longitude}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontSize: '11px', color: '#3D6FA8', display: 'flex', alignItems: 'center', gap: '2px' }}
+                        >
+                          <MapPin size={11} /> View location
+                        </a>
+                      )}
+                    </div>
+                    {a.accepted_by && responderInfo[a.accepted_by] && (
+                      <div style={styles.responderBox}>
+                        <span style={{ fontWeight: 700 }}>
+                          {a.status === 'resolved' ? '✓ Resolved by' : '🟢 Responding'}: {responderInfo[a.accepted_by].name}
+                        </span>
+                        <span style={styles.responderRole}>
+                          ({responderInfo[a.accepted_by].role})
+                        </span>
+                        {responderInfo[a.accepted_by].phone && (
+                          <span> — {responderInfo[a.accepted_by].phone}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     {a.status === 'pending' && (
@@ -368,6 +442,15 @@ const styles = {
     fontWeight: 600,
     fontSize: '13px',
     cursor: 'pointer',
+  },
+  responderBox: {
+    marginTop: '4px',
+    fontSize: '11px',
+    color: '#2F7D6E',
+  },
+  responderRole: {
+    color: '#6B7370',
+    textTransform: 'capitalize',
   },
   smallActionBtn: {
     fontSize: '11px',

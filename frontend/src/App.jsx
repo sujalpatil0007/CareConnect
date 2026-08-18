@@ -136,6 +136,7 @@ import ResidentDashboard from './pages/ResidentDashboard';
 import GuardianDashboard from './pages/GuardianDashboard';
 import VolunteerDashboard from './pages/VolunteerDashboard';
 import SecurityDashboard from './pages/SecurityDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
   return (
@@ -147,6 +148,7 @@ function App() {
         <Route path="/guardian-dashboard" element={<GuardianDashboard />} />
         <Route path="/volunteer-dashboard" element={<VolunteerDashboard />} />
         <Route path="/security-dashboard" element={<SecurityDashboard />} />
+        <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>

@@ -165,6 +165,7 @@ export default function LoginForm({ role }) {
       else if (loggedInRole === 'guardian') navigate('/guardian-dashboard');
       else if (loggedInRole === 'volunteer') navigate('/volunteer-dashboard');
       else if (loggedInRole === 'security') navigate('/security-dashboard');
+      else if (loggedInRole === 'admin') navigate('/admin-dashboard');
       else setErrorMsg('Unknown role, cannot redirect');
     } catch (error) {
       if (error.response) {

@@ -2,6 +2,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
 from database import engine, Base, get_db
 import models
@@ -447,7 +448,10 @@ def get_linked_resident(user_id: int, db: Session = Depends(get_db)):
 def create_alert(alert: schemas.EmergencyAlertCreate, resident_id: int, db: Session = Depends(get_db)):
     new_alert = models.EmergencyAlert(
         resident_id=resident_id,
+        category=alert.category,
         message=alert.message,
+        latitude=alert.latitude,
+        longitude=alert.longitude,
     )
     db.add(new_alert)
     db.commit()
@@ -467,6 +471,7 @@ def acknowledge_alert(alert_id: int, accepted_by: int, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Alert not found")
     alert.status = "acknowledged"
     alert.accepted_by = accepted_by
+    alert.acknowledged_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     return {"message": "Alert acknowledged"}
 
@@ -477,5 +482,101 @@ def resolve_alert(alert_id: int, db: Session = Depends(get_db)):
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
     alert.status = "resolved"
+    alert.resolved_at = datetime.now(timezone.utc).isoformat()
     db.commit()
     return {"message": "Alert resolved"}
+
+
+
+@app.get("/guardian-user/{user_id}/resident-alerts")
+def get_resident_alerts_for_guardian(user_id: int, db: Session = Depends(get_db)):
+    guardian_record = db.query(models.Guardian).filter(
+        models.Guardian.linked_user_id == user_id,
+        models.Guardian.status == "approved"
+    ).first()
+
+    if not guardian_record:
+        return []
+
+    alerts = db.query(models.EmergencyAlert).filter(
+        models.EmergencyAlert.resident_id == guardian_record.resident_id
+    ).order_by(models.EmergencyAlert.id.desc()).all()
+
+    return alerts
+
+@app.put("/emergency-alert/{alert_id}/start-assistance")
+def start_assistance(alert_id: int, db: Session = Depends(get_db)):
+    alert = db.query(models.EmergencyAlert).filter(models.EmergencyAlert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    alert.status = "responding"
+    alert.assistance_started_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    return {"message": "Assistance started"}
+
+
+@app.get("/user/{user_id}/basic-info")
+def get_basic_info(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "id": user.id,
+        "name": user.name,
+        "role": user.role,
+        "phone": user.phone,
+        "email": user.email,
+    }
+
+
+@app.put("/user/{user_id}/change-password")
+def change_password(user_id: int, data: schemas.PasswordChange, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not auth.verify_password(data.current_password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    user.hashed_password = auth.hash_password(data.new_password)
+    db.commit()
+    return {"message": "Password updated successfully"}
+
+
+@app.get("/admin/societies-overview")
+def get_societies_overview(db: Session = Depends(get_db)):
+    societies = db.query(models.Society).all()
+    result = []
+    for s in societies:
+        resident = db.query(models.User).filter(models.User.id == s.resident_id).first()
+        blocks = db.query(models.Block).filter(models.Block.society_id == s.id).all()
+        block_list = []
+        for b in blocks:
+            flats = db.query(models.Flat).filter(models.Flat.block_id == b.id).all()
+            flat_list = []
+            for f in flats:
+                flat_resident = db.query(models.User).filter(models.User.id == f.resident_id).first()
+                flat_list.append({
+                    "id": f.id,
+                    "flat_number": f.flat_number,
+                    "resident_name": flat_resident.name if flat_resident else None,
+                })
+            block_list.append({"id": b.id, "name": b.name, "flats": flat_list})
+        result.append({
+            "id": s.id,
+            "name": s.name,
+            "address": s.address,
+            "resident_name": resident.name if resident else None,
+            "blocks": block_list,
+        })
+    return result
+
+
+@app.put("/announcement/{announcement_id}", response_model=schemas.AnnouncementResponse)
+def update_announcement(announcement_id: int, announcement: schemas.AnnouncementCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.Announcement).filter(models.Announcement.id == announcement_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    existing.title = announcement.title
+    existing.message = announcement.message
+    db.commit()
+    db.refresh(existing)
+    return existing

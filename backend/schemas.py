@@ -131,18 +131,34 @@ class GuardianApprove(BaseModel):
 
 #-------------------------------------------------------------------------
 class EmergencyAlertCreate(BaseModel):
+    category: Optional[str] = None
     message: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
 
 
 class EmergencyAlertResponse(BaseModel):
     id: int
     resident_id: int
+    category: Optional[str] = None
     message: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
     status: str
     accepted_by: Optional[int] = None
     created_at: str
+    acknowledged_at: Optional[str] = None
+    resolved_at: Optional[str] = None
+    
+    assistance_started_at: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
     
     
