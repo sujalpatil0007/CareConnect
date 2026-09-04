@@ -137,6 +137,23 @@ class EmergencyAlertCreate(BaseModel):
     longitude: Optional[str] = None
 
 
+# class EmergencyAlertResponse(BaseModel):
+#     id: int
+#     resident_id: int
+#     category: Optional[str] = None
+#     message: Optional[str] = None
+#     latitude: Optional[str] = None
+#     longitude: Optional[str] = None
+#     status: str
+#     accepted_by: Optional[int] = None
+#     created_at: str
+#     acknowledged_at: Optional[str] = None
+#     resolved_at: Optional[str] = None
+    
+#     assistance_started_at: Optional[str] = None
+
+#     class Config:
+#         from_attributes = True
 class EmergencyAlertResponse(BaseModel):
     id: int
     resident_id: int
@@ -144,13 +161,16 @@ class EmergencyAlertResponse(BaseModel):
     message: Optional[str] = None
     latitude: Optional[str] = None
     longitude: Optional[str] = None
+
     status: str
+
     accepted_by: Optional[int] = None
+    resolved_by: Optional[int] = None
+
     created_at: str
     acknowledged_at: Optional[str] = None
-    resolved_at: Optional[str] = None
-    
     assistance_started_at: Optional[str] = None
+    resolved_at: Optional[str] = None
 
     class Config:
         from_attributes = True

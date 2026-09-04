@@ -111,21 +111,63 @@ class Announcement(Base):
     posted_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(String, default=lambda: datetime.now(timezone.utc).isoformat())
     
+# class EmergencyAlert(Base):
+#     __tablename__ = "emergency_alerts"
+
+#     id = Column(Integer, primary_key=True, index=True)
+#     resident_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+#     category = Column(String, nullable=True)
+#     message = Column(String, nullable=True)
+#     latitude = Column(String, nullable=True)
+#     longitude = Column(String, nullable=True)
+#     status = Column(String, default="pending")
+#     accepted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+#     created_at = Column(String, default=lambda: datetime.now(timezone.utc).isoformat())
+#     acknowledged_at = Column(String, nullable=True)
+#     resolved_at = Column(String, nullable=True)
+    
+#     acknowledged_at = Column(String, nullable=True)
+#     resolved_at = Column(String, nullable=True)
+#     assistance_started_at = Column(String, nullable=True)
+
 class EmergencyAlert(Base):
     __tablename__ = "emergency_alerts"
 
     id = Column(Integer, primary_key=True, index=True)
-    resident_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    resident_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
     category = Column(String, nullable=True)
     message = Column(String, nullable=True)
+
     latitude = Column(String, nullable=True)
     longitude = Column(String, nullable=True)
+
     status = Column(String, default="pending")
-    accepted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(String, default=lambda: datetime.now(timezone.utc).isoformat())
+
+    # Person who accepted/acknowledged the alert
+    accepted_by = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
+    # Person who resolved the alert
+    resolved_by = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
+    created_at = Column(
+        String,
+        default=lambda: datetime.now(timezone.utc).isoformat()
+    )
+
     acknowledged_at = Column(String, nullable=True)
-    resolved_at = Column(String, nullable=True)
-    
-    acknowledged_at = Column(String, nullable=True)
-    resolved_at = Column(String, nullable=True)
     assistance_started_at = Column(String, nullable=True)
+    resolved_at = Column(String, nullable=True)
